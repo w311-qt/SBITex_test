@@ -1,0 +1,95 @@
+{
+  "n_cases": 36,
+  "pass_rate": 0.6666666666666666,
+  "mean_correctness": 0.5833333333333334,
+  "mean_faithfulness": 0.9555555555555555,
+  "hallucination_rate": 0.03333333333333333,
+  "false_refusal_rate": 0.06666666666666667,
+  "false_answer_rate": 0.0,
+  "evidence_recall": 0.9,
+  "forbidden_claim_rate": 0.0,
+  "composite_score": 0.7769444444444444,
+  "detected_refusal_rate": 0.06666666666666667,
+  "metadata": {
+    "model_name": "qwen2.5-coder:7b",
+    "dataset_path": "data\\winmerge_eval.jsonl",
+    "top_k": 10,
+    "dry_run": false,
+    "timestamp": "2026-05-31T12:47:36.612226+00:00",
+    "winmerge_commit": "ce4aa744ab9df2dc9cdf9a88bca231ded3e6bf97",
+    "thresholds": {
+      "correctness_pass": 0.7,
+      "hallucination": 0.5,
+      "false_refusal": 0.3,
+      "false_answer": 0.5
+    }
+  },
+  "by_language": {
+    "en": {
+      "pass_rate": 0.7142857142857143,
+      "mean_correctness": 0.6119047619047618,
+      "mean_faithfulness": 0.9357142857142856,
+      "hallucination_rate": 0.05555555555555555,
+      "false_refusal_rate": 0.05555555555555555,
+      "false_answer_rate": 0.0,
+      "evidence_recall": 1.0,
+      "forbidden_claim_rate": 0.0,
+      "detected_refusal_rate": 0.05555555555555555,
+      "composite_score": 0.8028571428571427
+    },
+    "ru": {
+      "pass_rate": 0.6,
+      "mean_correctness": 0.5433333333333333,
+      "mean_faithfulness": 0.9833333333333333,
+      "hallucination_rate": 0.0,
+      "false_refusal_rate": 0.08333333333333333,
+      "false_answer_rate": 0.0,
+      "evidence_recall": 0.75,
+      "forbidden_claim_rate": 0.0,
+      "detected_refusal_rate": 0.08333333333333333,
+      "composite_score": 0.7386666666666667
+    }
+  },
+  "by_difficulty": {
+    "easy": {
+      "pass_rate": 0.5789473684210527,
+      "mean_correctness": 0.5157894736842106,
+      "mean_faithfulness": 0.994736842105263,
+      "hallucination_rate": 0.0,
+      "false_refusal_rate": 0.07692307692307693,
+      "false_answer_rate": 0.0,
+      "evidence_recall": 0.9230769230769231,
+      "forbidden_claim_rate": 0.0,
+      "detected_refusal_rate": 0.07692307692307693,
+      "composite_score": 0.7648785425101214
+    },
+    "medium": {
+      "pass_rate": 0.7692307692307693,
+      "mean_correctness": 0.6884615384615385,
+      "mean_faithfulness": 0.9038461538461539,
+      "hallucination_rate": 0.07692307692307693,
+      "false_refusal_rate": 0.0,
+      "false_answer_rate": null,
+      "evidence_recall": 0.8461538461538461,
+      "forbidden_claim_rate": null,
+      "detected_refusal_rate": 0.0,
+      "composite_score": 0.7953846153846154
+    },
+    "hard": {
+      "pass_rate": 0.75,
+      "mean_correctness": 0.5625,
+      "mean_faithfulness": 0.9375,
+      "hallucination_rate": 0.0,
+      "false_refusal_rate": 0.25,
+      "false_answer_rate": null,
+      "evidence_recall": 1.0,
+      "forbidden_claim_rate": null,
+      "detected_refusal_rate": 0.25,
+      "composite_score": 0.78125
+    }
+  },
+  "cohens_kappa_correctness": 0.46153846153846156,
+  "cohens_kappa_faithfulness": 1.0,
+  "mean_score_delta_correctness": 0.2,
+  "mean_score_delta_faithfulness": 0.08035714285714286
+}

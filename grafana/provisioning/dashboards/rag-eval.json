@@ -1,0 +1,146 @@
+{
+  "title": "RAG Eval",
+  "uid": "rag-eval-001",
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "browser",
+  "time": {"from": "now-30d", "to": "now"},
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Composite Score",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "frser-sqlite-datasource", "uid": "sqlite-rag-eval"},
+      "options": {"colorMode": "value", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "fieldConfig": {"defaults": {"unit": "none", "decimals": 3,
+        "thresholds": {"mode": "absolute", "steps": [
+          {"color": "red", "value": null},
+          {"color": "yellow", "value": 0.6},
+          {"color": "green", "value": 0.75}
+        ]}
+      }},
+      "targets": [{"queryText": "SELECT composite_score FROM runs ORDER BY rowid DESC LIMIT 1", "rawQuery": true}]
+    },
+    {
+      "id": 2, "type": "stat", "title": "Pass Rate (τ=0.7)",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "frser-sqlite-datasource", "uid": "sqlite-rag-eval"},
+      "options": {"colorMode": "value", "graphMode": "none"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "decimals": 1,
+        "thresholds": {"mode": "absolute", "steps": [
+          {"color": "red", "value": null},
+          {"color": "yellow", "value": 0.4},
+          {"color": "green", "value": 0.6}
+        ]}
+      }},
+      "targets": [{"queryText": "SELECT pass_rate FROM runs ORDER BY rowid DESC LIMIT 1", "rawQuery": true}]
+    },
+    {
+      "id": 3, "type": "stat", "title": "Mean Correctness",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "frser-sqlite-datasource", "uid": "sqlite-rag-eval"},
+      "options": {"colorMode": "value", "graphMode": "none"},
+      "fieldConfig": {"defaults": {"unit": "none", "decimals": 3}},
+      "targets": [{"queryText": "SELECT mean_correctness FROM runs ORDER BY rowid DESC LIMIT 1", "rawQuery": true}]
+    },
+    {
+      "id": 4, "type": "stat", "title": "Mean Faithfulness",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "frser-sqlite-datasource", "uid": "sqlite-rag-eval"},
+      "options": {"colorMode": "value", "graphMode": "none"},
+      "fieldConfig": {"defaults": {"unit": "none", "decimals": 3}},
+      "targets": [{"queryText": "SELECT mean_faithfulness FROM runs ORDER BY rowid DESC LIMIT 1", "rawQuery": true}]
+    },
+    {
+      "id": 5, "type": "stat", "title": "Evidence Recall",
+      "gridPos": {"x": 0, "y": 4, "w": 6, "h": 4},
+      "datasource": {"type": "frser-sqlite-datasource", "uid": "sqlite-rag-eval"},
+      "options": {"colorMode": "value", "graphMode": "none"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "decimals": 1}},
+      "targets": [{"queryText": "SELECT evidence_recall FROM runs ORDER BY rowid DESC LIMIT 1", "rawQuery": true}]
+    },
+    {
+      "id": 6, "type": "stat", "title": "Hallucination Rate",
+      "gridPos": {"x": 6, "y": 4, "w": 6, "h": 4},
+      "datasource": {"type": "frser-sqlite-datasource", "uid": "sqlite-rag-eval"},
+      "options": {"colorMode": "value", "graphMode": "none"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "decimals": 1,
+        "thresholds": {"mode": "absolute", "steps": [
+          {"color": "green", "value": null},
+          {"color": "yellow", "value": 0.05},
+          {"color": "red", "value": 0.15}
+        ]}
+      }},
+      "targets": [{"queryText": "SELECT hallucination_rate FROM runs ORDER BY rowid DESC LIMIT 1", "rawQuery": true}]
+    },
+    {
+      "id": 7, "type": "stat", "title": "Cohen's κ (correctness)",
+      "gridPos": {"x": 12, "y": 4, "w": 6, "h": 4},
+      "datasource": {"type": "frser-sqlite-datasource", "uid": "sqlite-rag-eval"},
+      "options": {"colorMode": "value", "graphMode": "none"},
+      "fieldConfig": {"defaults": {"unit": "none", "decimals": 3}},
+      "targets": [{"queryText": "SELECT cohens_kappa_correctness FROM runs ORDER BY rowid DESC LIMIT 1", "rawQuery": true}]
+    },
+    {
+      "id": 8, "type": "stat", "title": "Detected Refusal Rate",
+      "gridPos": {"x": 18, "y": 4, "w": 6, "h": 4},
+      "datasource": {"type": "frser-sqlite-datasource", "uid": "sqlite-rag-eval"},
+      "options": {"colorMode": "value", "graphMode": "none"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "decimals": 1,
+        "thresholds": {"mode": "absolute", "steps": [
+          {"color": "green", "value": null},
+          {"color": "yellow", "value": 0.1},
+          {"color": "red", "value": 0.25}
+        ]}
+      }},
+      "targets": [{"queryText": "SELECT detected_refusal_rate FROM runs ORDER BY rowid DESC LIMIT 1", "rawQuery": true}]
+    },
+    {
+      "id": 13, "type": "stat", "title": "Total Runs",
+      "gridPos": {"x": 0, "y": 30, "w": 6, "h": 3},
+      "datasource": {"type": "frser-sqlite-datasource", "uid": "sqlite-rag-eval"},
+      "options": {"colorMode": "value", "graphMode": "none"},
+      "fieldConfig": {"defaults": {"unit": "none"}},
+      "targets": [{"queryText": "SELECT COUNT(*) FROM runs", "rawQuery": true}]
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "Metrics over Runs",
+      "gridPos": {"x": 0, "y": 8, "w": 24, "h": 8},
+      "datasource": {"type": "frser-sqlite-datasource", "uid": "sqlite-rag-eval"},
+      "options": {"tooltip": {"mode": "multi"}},
+      "fieldConfig": {"defaults": {"unit": "none", "min": 0, "max": 1, "custom": {"lineWidth": 2}}},
+      "targets": [{
+        "queryText": "SELECT CAST(strftime('%s', COALESCE(timestamp, datetime('now'))) AS INTEGER) * 1000 AS time, composite_score, pass_rate, mean_correctness, mean_faithfulness, evidence_recall FROM runs ORDER BY rowid",
+        "rawQuery": true,
+        "timeColumns": ["time"]
+      }]
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Error Rates over Runs",
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 6},
+      "datasource": {"type": "frser-sqlite-datasource", "uid": "sqlite-rag-eval"},
+      "options": {"tooltip": {"mode": "multi"}},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1, "custom": {"lineWidth": 2}}},
+      "targets": [{
+        "queryText": "SELECT CAST(strftime('%s', COALESCE(timestamp, datetime('now'))) AS INTEGER) * 1000 AS time, hallucination_rate, false_refusal_rate, false_answer_rate, detected_refusal_rate FROM runs ORDER BY rowid",
+        "rawQuery": true,
+        "timeColumns": ["time"]
+      }]
+    },
+    {
+      "id": 11, "type": "table", "title": "Runs History",
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 6},
+      "datasource": {"type": "frser-sqlite-datasource", "uid": "sqlite-rag-eval"},
+      "targets": [{"queryText": "SELECT run_id, timestamp, model_name, top_k, n_cases, composite_score, pass_rate FROM runs ORDER BY rowid DESC LIMIT 20", "rawQuery": true}]
+    },
+    {
+      "id": 12, "type": "table", "title": "Per-Case Results (latest run)",
+      "gridPos": {"x": 0, "y": 22, "w": 24, "h": 8},
+      "datasource": {"type": "frser-sqlite-datasource", "uid": "sqlite-rag-eval"},
+      "targets": [{
+        "queryText": "SELECT c.case_id, c.language, c.difficulty, ROUND(c.correctness,3) AS correctness, ROUND(c.faithfulness,3) AS faithfulness, c.passed, c.hallucination, c.false_refusal, c.is_refusal, c.evidence_hit FROM cases c WHERE c.run_id=(SELECT run_id FROM runs ORDER BY rowid DESC LIMIT 1) ORDER BY c.correctness ASC",
+        "rawQuery": true
+      }]
+    }
+  ]
+}

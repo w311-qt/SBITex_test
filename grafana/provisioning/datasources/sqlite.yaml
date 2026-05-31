@@ -1,0 +1,10 @@
+apiVersion: 1
+
+datasources:
+  - name: RAG-Eval
+    uid: sqlite-rag-eval
+    type: frser-sqlite-datasource
+    access: proxy
+    isDefault: true
+    jsonData:
+      path: /reports/metrics.db

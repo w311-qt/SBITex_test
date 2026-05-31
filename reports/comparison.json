@@ -1,0 +1,12 @@
+{
+  "delta_pass_rate": -0.02777777777777779,
+  "delta_mean_correctness": -0.004166666666666541,
+  "delta_mean_faithfulness": 0.012499999999999845,
+  "delta_hallucination_rate": 0.0,
+  "delta_false_refusal_rate": 0.03333333333333333,
+  "delta_false_answer_rate": 0.0,
+  "delta_evidence_recall": 0.0,
+  "delta_forbidden_claim_rate": 0.0,
+  "delta_composite_score": 0.0024999999999999467,
+  "delta_detected_refusal_rate": 0.0
+}

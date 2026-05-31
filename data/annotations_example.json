@@ -1,0 +1,12 @@
+[
+  {"case_id": "wm_en_01_run_file_diff",    "judge_score": 0.88, "human_label": 1},
+  {"case_id": "wm_en_02_difflist_class",   "judge_score": 0.74, "human_label": 1},
+  {"case_id": "wm_en_03_diffrange_struct", "judge_score": 0.61, "human_label": 1},
+  {"case_id": "wm_en_04_diff_thread",      "judge_score": 0.43, "human_label": 0},
+  {"case_id": "wm_en_05_word_diffs",       "judge_score": 0.82, "human_label": 1},
+  {"case_id": "wm_en_neg_01_cuda",         "judge_score": 0.18, "human_label": 0},
+  {"case_id": "wm_ru_01_core_diff_class",  "judge_score": 0.71, "human_label": 1},
+  {"case_id": "wm_ru_03_conflict_detection","judge_score": 0.55, "human_label": 0},
+  {"case_id": "wm_en_09_options_mgr",      "judge_score": 0.91, "human_label": 1},
+  {"case_id": "wm_ru_neg_01_rest_api",     "judge_score": 0.12, "human_label": 0}
+]
