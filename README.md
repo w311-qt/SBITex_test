@@ -1,10 +1,10 @@
-# LLM-as-Judge · End-to-End оценка Code-RAG
+# End-to-end LLM-as-judge для code-RAG
 
-**Репо:** WinMerge (open-source MFC/Win32 C++) · **Модель:** `qwen2.5-coder:7b` (Ollama, OpenAI-compatible API)  
-**Судья:** та же модель, что генератор + вторичный (`llama3.2:3b`) для agreement (Cohen's κ)  
+**Репозиторий:** WinMerge (open-source MFC/Win32 C++)  
+**Модель:** `qwen2.5-coder:7b` (Ollama, OpenAI-compatible API)  
+**Судья:** та же модель, что и генератор; вторичный `llama3.2:3b` для agreement (Cohen's κ)  
 
-Система запускает полный прогон с LLM-as-judge для пайплайна code-RAG и выдаёт набор классических метрик качества.
-При смене промпта, retrieval-стратегии или модели сразу видно: стало **лучше или хуже**.
+Система выполняет end-to-end прогон с LLM-as-judge для пайплайна code-RAG и выдаёт набор классических метрик качества. При смене промпта, retrieval-стратегии или модели сразу видно: стало **лучше или хуже**.
 
 ```
 Вопрос ──► Hybrid retrieval ──► LLM генератор ──► {ответ, контекст, файлы}
@@ -46,7 +46,7 @@ git clone https://github.com/WinMerge/winmerge.git winmerge
 
 Два варианта запуска — выбрать один.
 
-> **Первый прогон** дополнительно скачивает dense-эмбеддер (`multilingual-e5-base`, ~1.1 ГБ) и один раз индексирует корпус в эмбеддинги (кэш в `reports/.emb_cache/`, ~1–3 мин на CPU). Последующие прогоны переиспользуют кэш. Чтобы отключить dense и работать только на BM25 — `USE_DENSE=0`.
+**Первый прогон:** дополнительно скачивает dense-эмбеддер (`multilingual-e5-base`, ~1.1 ГБ) и один раз индексирует корпус в эмбеддинги (кэш в `reports/.emb_cache/`, ~1–3 мин на CPU). Последующие прогоны переиспользуют кэш. Чтобы отключить dense и работать только на BM25 — `USE_DENSE=0`.
 
 ### Вариант А — Docker (рекомендуется, без внешних API-ключей)
 
@@ -65,7 +65,7 @@ docker compose --profile eval run --build --rm rag-eval evaluate \
   --report  reports/run_baseline.json
 ```
 
-> **Важно:** `docker compose run` **без** `--build` переиспользует ранее собранный образ. После любого `git pull` / изменения кода обязателен флаг `--build` (или разовый `docker compose build rag-eval`), иначе контейнер крутит старую версию. Исходники также примонтированы (`./rag_eval`), поэтому правки чистого Python подхватываются без пересборки — пересборка нужна лишь при смене зависимостей.
+**Важно:** `docker compose run` **без** `--build` переиспользует ранее собранный образ. После любого `git pull` / изменения кода обязателен флаг `--build` (или разовый `docker compose build rag-eval`), иначе контейнер крутит старую версию. Исходники также примонтированы (`./rag_eval`), поэтому правки чистого Python подхватываются без пересборки — пересборка нужна лишь при смене зависимостей.
 
 Дашборды откроются сразу после первого прогона:
 
@@ -76,7 +76,7 @@ docker compose --profile eval run --build --rm rag-eval evaluate \
 | Ollama | http://localhost:11434 | OpenAI-compatible API |
 
 **Требования к железу:** NVIDIA GPU обязателен (VRAM ≥ 6 GB для 7B + 3B моделей).  
-При отсутствии GPU `docker compose up` завершится ошибкой — см. §12 Troubleshooting.
+При отсутствии GPU `docker compose up` завершится ошибкой — см. §12 «Диагностика проблем».
 
 ---
 
@@ -140,28 +140,34 @@ python -m rag_eval evaluate \
 
 ## 4. Запуск оценки
 
-### 4.1 Базовый прогон
+### 4.1 Базовый прогон (BM25-only retrieval)
+
+`USE_DENSE=0` отключает dense-retriever — остаётся чистый лексический BM25. Это «до» в нашем A/B.
 
 ```bash
-python -m rag_eval evaluate \
+USE_DENSE=0 python -m rag_eval evaluate \
   --dataset data/winmerge_eval.jsonl \
   --report  reports/run_baseline.json
 ```
 
-Прогресс отображается в терминале. По завершении — итоговые числа и пути сохранённых файлов.
+**Windows PowerShell:** `$env:USE_DENSE=0; python -m rag_eval evaluate --dataset data/winmerge_eval.jsonl --report reports/run_baseline.json`
+
+Прогресс отображается в терминале. По завершении — итоговые числа и пути сохранённых файлов. Режим retrieval пишется в `metadata.retrieval_mode` отчёта.
 
 ---
 
-### 4.2 Второй прогон для A/B (top\_k = 10)
+### 4.2 Улучшенный прогон для A/B (гибридный retrieval)
 
-Тот же датасет, но retrieval возвращает 10 чанков вместо 5 — A/B-сравнение влияния top\_k (см. §9: на сильном гибридном retrieval оптимален top\_k=5).
+Тот же датасет, тот же `top_k=5`, но поверх BM25 включён dense-retriever (e5-base) с RRF-fusion и confidence-gating. A/B измеряет вклад **гибридного retrieval** (см. §9).
 
 ```bash
-python -m rag_eval evaluate \
+USE_DENSE=1 python -m rag_eval evaluate \
   --dataset data/winmerge_eval.jsonl \
   --report  reports/run_improved.json \
-  --top-k 10
+  --baseline reports/run_baseline.json
 ```
+
+`--baseline` включает regression-guard: сразу пишется `reports/comparison.json` и возвращается exit code 1, если composite упал больше чем на ε=0.02.
 
 ---
 
@@ -232,20 +238,20 @@ python -m rag_eval evaluate [ОПЦИИ]
 | `mean_faithfulness` | среднее faithfulness ∈ [0, 1] | Заземлённость на контекст retrieval |
 | `hallucination_rate` | доля(faith < 0.5) по `should_have_answer: true` | Изобретение фактов |
 | `false_refusal_rate` | доля(corr < 0.3) по позитивным | Отказ там, где ответ есть |
-| `false_answer_rate` | доля(corr < 0.5) по `should_have_answer: false` | Выдуманный ответ на заведомо отсутствующий факт |
+| `false_answer_rate` | доля(corr ≥ 0.5) по `should_have_answer: false` | Выдуманный ответ на заведомо отсутствующий факт |
 | `evidence_recall` | доля хитов по `required_evidence_any` | BM25 находит нужные файлы |
 | `forbidden_claim_rate` | доля срабатываний `forbidden_claims_any` | Детектор запрещённых утверждений |
 | `composite_score` | 0.45 · corr + 0.35 · faith + 0.20 · recall | Итоговый балл прогона |
 
 **Целевые ориентиры:** `composite_score > 0.75`, `hallucination_rate < 0.05`, `evidence_recall > 0.60`.
 
+**Примечание о `composite_score`:** считается строго по формуле ТЗ. Если в датасете **нет** кейсов с `required_evidence_any`, `evidence_recall` не определён (NaN) и composite тоже становится NaN — это намеренно: метрика сигнализирует «датасет без evidence», а не молча занижает балл.
+
 **Ограничение `evidence_recall` для русских запросов.** BM25 работает над English C++ кодом. Русские вопросы без C++ идентификаторов (6 из 30 кейсов с `required_evidence_any`) не могут найти нужные файлы через лексический поиск. Средство — cross-lingual embeddings (FAISS + mGTE/mE5); в текущей BM25-имплементации это структурное ограничение.
 
 **Примечание о `false_answer_rate`.**  
-Используется структурная детекция независимо от судьи: `false_answer = NOT should_have_answer AND NOT is_refusal`.  
-— `is_refusal=True` (модель сказала "not in context") → NOT false_answer (корректное поведение).  
-— `is_refusal=False` (модель ввела технические символы о несуществующей фиче) → false_answer.  
-Spec-формула (`corr ≥ 0.5`) предназначена для пустых `reference_answer`; при заполненных эталонах для негативных кейсов она даёт 0.0 или 1.0 в зависимости от промпта, не отражая реальность.
+Формула ТЗ §6: `NOT should_have_answer AND correctness ≥ 0.5` — негативный кейс, где модель уверенно ответила вместо отказа. Порог настраивается флагом `--thr-false-answer` (default 0.5).  
+На нашем датасете судья оценивает корректные отказы на негативных кейсах низко (corr 0.0–0.25, все < 0.5), поэтому `false_answer_rate = 0.000` и совпадает со структурным счётом отказов (`detected_refusal_rate`) — риск «корректный отказ засчитан как ложный ответ» на этих данных не реализуется.
 
 **Примечание о `false_refusal_rate` и `detected_refusal_rate`.**  
 Spec-формула: `is_refusal AND correctness < 0.3`.  
@@ -319,7 +325,10 @@ mlflow ui --port 5000    # http://localhost:5000
   "cohens_kappa_correctness": 0.169,
   "metadata": {
     "model_name": "qwen2.5-coder:7b",
-    "top_k": 10,
+    "top_k": 5,
+    "retrieval_mode": "hybrid",
+    "use_dense": true,
+    "bm25_min_score": 15.0,
     "winmerge_commit": "ce4aa744",
     "dry_run": false,
     "timestamp": "2026-05-29T13:09:07+00:00"
@@ -362,24 +371,25 @@ mlflow ui --port 5000    # http://localhost:5000
 
 ## 9. Примеры результатов
 
-Два реальных прогона на `qwen2.5-coder:7b` (Ollama, генератор + первичный судья) + `llama3.2:3b` (вторичный судья, Ollama), retrieval — **гибрид BM25 + dense (e5-base), RRF-fusion**:
+Два реальных прогона на `qwen2.5-coder:7b` (Ollama, генератор + первичный судья) + `llama3.2:3b` (вторичный судья, Ollama). A/B-рычаг — **retrieval**: BM25-only (baseline) против гибрида BM25 + dense (e5-base) с RRF-fusion (improved), при одинаковом `top_k=5`:
 
-| Метрика | Baseline top\_k=5 | Improved top\_k=10 | Δ |
+| Метрика | Baseline (BM25-only) | Improved (Hybrid) | Δ |
 |---|---|---|---|
-| **composite\_score** | 0.774 | **0.777** | +0.003 |
-| pass\_rate (τ=0.7) | **0.694** | 0.667 | −0.028 |
-| mean\_correctness | **0.588** | 0.583 | −0.004 |
-| mean\_faithfulness | 0.943 | **0.956** | +0.013 |
-| evidence\_recall | 0.900 | 0.900 | 0.000 |
-| hallucination\_rate | 0.033 | 0.033 | 0.000 |
-| false\_refusal\_rate | **0.033** | 0.067 | +0.033 |
+| **composite\_score** | 0.706 | **0.775** | **+0.069** |
+| pass\_rate (τ=0.7) | 0.528 | **0.667** | +0.139 |
+| mean\_correctness | 0.481 | **0.589** | +0.108 |
+| mean\_faithfulness | **0.963** | 0.943 | −0.019 |
+| mean\_relevance (бонус) | 0.660 | **0.819** | +0.160 |
+| evidence\_recall | 0.767 | **0.900** | +0.133 |
+| hallucination\_rate | **0.000** | 0.033 | +0.033 |
+| false\_refusal\_rate | 0.233 | **0.033** | −0.200 |
 | false\_answer\_rate | 0.000 | 0.000 | 0.000 |
-| detected\_refusal\_rate | 0.067 | 0.067 | 0.000 |
-| kappa\_correctness | 0.680 | 0.690 | — |
+| detected\_refusal\_rate | 0.233 | **0.067** | −0.167 |
+| kappa\_correctness | 0.706 | 0.769 | — |
 
-**Интерпретация.** Разница top\_k=5 vs top\_k=10 по composite (+0.003) **меньше run-to-run вариативности судьи**: два прогона идентичной конфигурации дают разброс composite ≈ 0.01 (Ollama не строго детерминирован даже при temperature=0). Поэтому top\_k на этом датасете/модели — **не решающий рычаг**: evidence\_recall идентичен (0.900), composite в пределах шума. Δ composite ≪ ε=0.02 — регрессия не фиксируется. Главный вывод: при сильном retrieval оба режима дают сопоставимое качество; выигрыш пришёл от самого retrieval (ниже), а не от top\_k.
+**Интерпретация.** Гибридный retrieval выигрывает уверенно: прирост composite +0.069 заметно превышает как порог ε=0.02, так и run-to-run шум судьи (≈0.01). Выигрыш сконцентрирован в `evidence_recall` (+0.133): попадание нужного файла в контекст каскадом поднимает `mean_correctness` (+0.108) и `pass_rate` (+0.139). Показательны `detected_refusal_rate` (0.233 → 0.067) и `false_refusal_rate` (0.233 → 0.033): на BM25-only нужные файлы не находились для ~8 кейсов, генератор корректно отказывался и получал низкую correctness — гибрид устраняет именно эти промахи retrieval. Издержки минимальны: `mean_faithfulness` −0.019 и +1 галлюцинация (больше контекста — выше шанс дрейфа), что на фоне выигрыша пренебрежимо. Ключевой вывод: **узким местом был retrieval, а не судья и не генератор.**
 
-**Эволюция retrieval (главный результат итераций).** Качество входных данных для судей улучшалось в три шага:
+**Эволюция retrieval (история итераций).** Таблица A/B выше — авторитетное воспроизведение на текущем датасете (BM25-only vs hybrid, `top_k=5`). Таблица ниже — хронология того, как улучшалось качество входных данных для судей по ходу проекта; колонка «BM25» снята до коррекции gold-эталонов (§8), поэтому её `evidence_recall` (0.800) отличается от current baseline (0.767):
 
 | Метрика | BM25 | + Hybrid dense | + Gold correction |
 |---|---|---|---|
@@ -393,7 +403,7 @@ mlflow ui --port 5000    # http://localhost:5000
 
 По языкам: EN evidence\_recall = **1.000**, RU = **0.750**. Оставшиеся 3 RU-промаха (`wm_ru_02/04/05`) — genuine предел эмбеддера на парах «RU-вопрос → EN-код»: целевые файлы лежат на ранге 274–553, выше них эмбеддер ставит шум (`StdAfx.cpp`). Более сильный эмбеддер (bge-m3) проверен — **выигрыша не дал** (та же 0.867 до коррекции gold). Реальный непробованный рычаг — перевод запроса RU→EN перед retrieval.
 
-Cohen's κ = 0.68–0.69 — существенное согласие Qwen-7B и LLaMA-3B.
+Cohen's κ = 0.71 (baseline) / 0.77 (improved) — существенное согласие Qwen-7B и LLaMA-3B (κ > 0.6).
 
 ---
 
@@ -450,7 +460,7 @@ docs/design.md                 Архитектура судьи, огранич
 
 ---
 
-## 12. Troubleshooting
+## 12. Диагностика проблем
 
 ### `could not select device driver "nvidia"` при `docker compose up`
 

@@ -92,7 +92,7 @@ def log_mlflow(em: EvalMetrics, tracking_uri: str, run_name: str, artifacts: lis
             })
             metrics = {}
             for k in ["composite_score", "pass_rate", "mean_correctness",
-                      "mean_faithfulness", "evidence_recall", "hallucination_rate",
+                      "mean_faithfulness", "mean_relevance", "evidence_recall", "hallucination_rate",
                       "false_refusal_rate", "false_answer_rate", "forbidden_claim_rate"]:
                 v = getattr(em, k, None)
                 if isinstance(v, float) and not math.isnan(v):

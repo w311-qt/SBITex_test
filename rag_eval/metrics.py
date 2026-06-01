@@ -18,6 +18,15 @@ log = logging.getLogger(__name__)
 
 AnswerFn = Callable[[str], RagAnswer]
 
+# Canonical list of scalar (float) metrics on EvalMetrics — single source of truth
+# for compare_runs() and the CLI delta tables. Keep in sync with EvalMetrics fields.
+SCALAR_METRIC_FIELDS = (
+    "pass_rate", "mean_correctness", "mean_faithfulness", "mean_relevance",
+    "hallucination_rate", "false_refusal_rate", "false_answer_rate",
+    "evidence_recall", "forbidden_claim_rate", "composite_score",
+    "detected_refusal_rate",
+)
+
 # Technical symbol pattern: CamelCase identifiers, ::scoped names, file paths.
 # Language-agnostic — works for both RU and EN questions.
 _TECH_SYM_RE = re.compile(
@@ -62,10 +71,8 @@ class ThresholdConfig:
     correctness_pass: float = 0.7   # correctness >= this → passed
     hallucination: float = 0.5      # faithfulness < this (pos cases) → hallucination
     false_refusal: float = 0.3      # correctness < this (pos cases) → false refusal
-    # For negative cases with filled reference_answer, low correctness means the
-    # candidate *disagrees* with the correct denial → hallucinated a positive answer.
-    # Original spec formula was >= 0.5, designed for empty-reference datasets.
-    false_answer: float = 0.5       # correctness < this (neg cases) → false answer
+    # Spec §6: a negative case counts as false_answer when correctness >= this.
+    false_answer: float = 0.5       # correctness >= this (neg cases) → false answer
 
 
 @dataclass(frozen=True)
@@ -121,6 +128,7 @@ class EvalMetrics:
     pass_rate: float
     mean_correctness: float
     mean_faithfulness: float
+    mean_relevance: Optional[float]    # bonus metric; NaN when no relevance scores
     hallucination_rate: float
     false_refusal_rate: float
     false_answer_rate: float
@@ -160,17 +168,23 @@ def _aggregate(cases: list[CaseMetrics]) -> dict[str, float]:
 
     mean_corr = _safe_mean([c.correctness for c in cases])
     mean_faith = _safe_mean([c.faithfulness for c in cases])
+    rels = [c.relevance for c in cases if c.relevance is not None]
     ev_recall = _safe_mean([float(c.evidence_hit) for c in ev_cases]) if ev_cases else float("nan")
+    # Spec §6 formula, verbatim: weighted sum of the three quality signals.
+    # If evidence_recall is NaN (no case sets required_evidence_any) composite is
+    # NaN — undefined rather than silently penalised — which the dataset lacking
+    # evidence fields should surface, not hide.
     composite = (
         0.45 * mean_corr
         + 0.35 * mean_faith
-        + 0.20 * (ev_recall if not _is_nan(ev_recall) else 0.0)
+        + 0.20 * ev_recall
     )
 
     return {
         "pass_rate": _safe_mean([float(c.passed) for c in cases]),
         "mean_correctness": mean_corr,
         "mean_faithfulness": mean_faith,
+        "mean_relevance": _safe_mean(rels) if rels else float("nan"),
         "hallucination_rate": _safe_mean([float(c.hallucination) for c in pos]) if pos else float("nan"),
         "false_refusal_rate": _safe_mean([float(c.false_refusal) for c in pos]) if pos else float("nan"),
         "false_answer_rate": _safe_mean([float(c.false_answer) for c in neg]) if neg else float("nan"),
@@ -248,15 +262,14 @@ def _process_case(
         and corr_res.score < thresholds.false_refusal
     )
 
-    # false_answer_rate: structural detection, independent of judge calibration.
-    # A negative case is a false_answer if the model gave a SUBSTANTIVE answer
-    # (introduced new technical symbols) instead of refusing/denying.
-    # - is_refusal=True  → model said "X not in context" or similar → NOT false_answer
-    # - is_refusal=False → model introduced new technical claims about something that
-    #   doesn't exist (e.g., "CUDA is in Src/X.cpp") → false_answer
-    # This works regardless of the correctness judge's calibration, because refusal
-    # detection is purely structural (no LLM required).
-    false_answer = not case.should_have_answer and not is_refusal
+    # false_answer_rate (spec §6): a negative case (should_have_answer=False) where
+    # the model gave a confident answer instead of refusing — i.e. correctness clears
+    # the threshold. On this dataset the judge scores correct refusals LOW (corr 0.0-0.25),
+    # so this equals the structural count; the threshold (--thr-false-answer) is honoured.
+    false_answer = (
+        not case.should_have_answer
+        and corr_res.score >= thresholds.false_answer
+    )
 
     # collect dual-judge results before constructing frozen CaseMetrics
     sec_corr = sec_faith = corr_delta = faith_delta = None
@@ -386,6 +399,7 @@ def evaluate_rag_run(
         pass_rate=agg["pass_rate"],
         mean_correctness=agg["mean_correctness"],
         mean_faithfulness=agg["mean_faithfulness"],
+        mean_relevance=agg["mean_relevance"],
         hallucination_rate=agg["hallucination_rate"],
         false_refusal_rate=agg["false_refusal_rate"],
         false_answer_rate=agg["false_answer_rate"],
@@ -404,19 +418,9 @@ def evaluate_rag_run(
     )
 
 
-def _is_nan(v: float) -> bool:
-    return v != v  # NaN is the only float not equal to itself
-
-
 def compare_runs(baseline: EvalMetrics, candidate: EvalMetrics) -> dict[str, float]:
     """Return delta_* for all scalar metrics. Positive = improvement."""
-    scalar_fields = [
-        "pass_rate", "mean_correctness", "mean_faithfulness",
-        "hallucination_rate", "false_refusal_rate", "false_answer_rate",
-        "evidence_recall", "forbidden_claim_rate", "composite_score",
-        "detected_refusal_rate",
-    ]
     return {
         f"delta_{f}": getattr(candidate, f) - getattr(baseline, f)
-        for f in scalar_fields
+        for f in SCALAR_METRIC_FIELDS
     }

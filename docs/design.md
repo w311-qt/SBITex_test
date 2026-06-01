@@ -33,10 +33,12 @@ Temperature = 0. Retry ≤ 2 on JSON parse failure. Falls back to `score=0.0, la
 
 | Dimension | Input | What it measures |
 |---|---|---|
-| Correctness | question + reference + candidate | Semantic agreement with gold answer; handles negative cases explicitly |
+| Correctness | question + reference + candidate | Semantic agreement with gold answer |
 | Faithfulness | question + context + candidate | Grounding in retrieved chunks; no reference visible |
 
-**Negative-case handling in correctness:** The reference describes the *correct denial* ("WinMerge does not use CUDA…"). The prompt instructs the judge that agreeing with a denial → 1.0, hallucinating a positive → 0.0. This is more robust than an empty reference because the judge has an explicit target to compare against.
+A third optional **Relevance** judge (question + candidate, on-topic check) runs per case and is aggregated as `mean_relevance` — a bonus metric reported alongside correctness/faithfulness (0.660 BM25-only → 0.819 hybrid).
+
+**Negative-case handling in correctness:** The reference describes the *correct denial* ("WinMerge does not use CUDA…") rather than being left empty, giving the judge a concrete target. A candidate that hallucinates a positive contradicts that reference → correctness near 0.0. In practice the generator instead refuses ("not present in the retrieved context"); since that refusal does not reproduce the reference's specific denial, the judge scores it low as well (corr 0.0–0.25). That is acceptable: `false_answer_rate` (spec §6) flags a negative case only when correctness ≥ 0.5, so correct refusals — well below the threshold — are never miscounted as false answers.
 
 **Dual-judge:** A second call goes to `llama3.2:3b` (a different model family, via the same Ollama endpoint). Labels are binarised at 0.5 and Cohen's κ is computed over the full dataset. κ > 0.6 indicates reliable agreement; lower values flag cases requiring human review.
 
@@ -54,7 +56,7 @@ Temperature = 0. Retry ≤ 2 on JSON parse failure. Falls back to `score=0.0, la
 
 **τ sensitivity.** `pass_rate` and derived boolean metrics depend heavily on the chosen threshold. A fixed τ = 0.7 may be miscalibrated for a new model or domain. The `calibrate` command addresses this with 5+ human labels.
 
-**Refusal misclassification (small-model judge).** A 7B judge following a multi-rule faithfulness prompt inconsistently applies rules — notably, pure refusals ("not in context") can receive faithfulness=0.3 instead of the correct 1.0. This inflates `hallucination_rate` by one false positive and hides real refusals from `false_refusal_rate` (the judge scores refusals at correctness=0.9, violating the corr<0.3 threshold). Mitigation applied: (1) faithfulness is forced to 1.0 for structurally-detected refusals (< 40 words, no new technical symbols), removing the false positive; (2) `detected_refusal_rate` exposes the underlying retrieval failure count independent of judge calibration.
+**Refusal misclassification (small-model judge).** A 7B judge following a multi-rule faithfulness prompt inconsistently applies rules — notably, pure refusals ("not in context") can receive faithfulness=0.3 instead of the correct 1.0, which would inflate `hallucination_rate` with a false positive. Mitigation applied: (1) faithfulness is forced to 1.0 for structurally-detected refusals (< 40 words, no new technical symbols), removing the false positive; (2) `detected_refusal_rate` exposes the underlying retrieval-failure count independent of judge calibration. Correctness, by contrast, scores refusals low (corr ≈ 0.0–0.1), so `false_refusal_rate` (is_refusal AND corr < 0.3) catches them correctly — 0.233 on BM25-only → 0.033 on hybrid as retrieval improves.
 
 **Language asymmetry.** Multilingual prompts produce lower agreement between models that differ in their multilingual training. Russian questions evaluated by an English-dominant model may get systematically lower faithfulness scores.
 
@@ -64,7 +66,7 @@ Temperature = 0. Retry ≤ 2 on JSON parse failure. Falls back to `score=0.0, la
 1. *Project-name poisoning:* every question contains "WinMerge", which tokenizes to {win, merge}; "merge" spuriously matched the `Merge.*` file stems and granted them the definition boost on every query. Fixed with a stem stopword list.
 2. *Noise dilution under RRF:* for Russian queries BM25 returns pure corpus-frequency noise (top-1 score ≈ 8.9, vs ≥16 for any real lexical match). Equal-weight RRF let that noise dilute the (weak but correct) dense signal, so hybrid scored no better than BM25 alone. Fix: **confidence-gated fusion** — BM25 joins the fusion only when its top-1 score clears a floor (15), otherwise the query is served dense-only. Stable across floor ∈ [12, 18].
 
-Result: evidence_recall 0.767 (BM25) → 0.867 (gated hybrid). Remaining 4 Russian misses need a stronger multilingual embedder (bge-m3) or query translation; e5-base does not rank them top-5.
+Result (final dataset): evidence_recall 0.767 (BM25-only) → 0.900 (gated hybrid) — this is the BM25-only vs hybrid A/B shown in the README (composite 0.706 → 0.775). Remaining 3 Russian misses (`wm_ru_02/04/05`) need a stronger multilingual embedder (bge-m3) or query translation; e5-base does not rank them top-5.
 
 ---
 

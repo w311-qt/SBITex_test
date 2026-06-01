@@ -66,7 +66,7 @@ def evaluate(dataset, report, top_k, dual_judge, dry_run, epsilon, baseline,
     from .rag.pipeline import make_answer_fn
     from .judge.judge import Judge
     from .judge.agreement import DualJudge
-    from .metrics import evaluate_rag_run, compare_runs
+    from .metrics import evaluate_rag_run, compare_runs, SCALAR_METRIC_FIELDS
     from .reporter import save_json, save_jsonl, save_csv, save_comparison_json, log_mlflow
     from .db import save_run
 
@@ -111,6 +111,9 @@ def evaluate(dataset, report, top_k, dual_judge, dry_run, epsilon, baseline,
         "dry_run": cfg.dry_run,
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "winmerge_commit": _git_commit(cfg.winmerge_repo_path),
+        "use_dense": cfg.use_dense,
+        "retrieval_mode": "hybrid" if cfg.use_dense else "bm25-only",
+        "bm25_min_score": cfg.bm25_min_score,
     }
 
     # Warmup: forces model to load into RAM before timed evaluation begins.
@@ -180,10 +183,7 @@ def evaluate(dataset, report, top_k, dual_judge, dry_run, epsilon, baseline,
             from .metrics import EvalMetrics
             # build minimal stub for compare_runs
             delta = {f"delta_{k}": getattr(em, k, float("nan")) - prev.get(k, float("nan"))
-                     for k in ["pass_rate","mean_correctness","mean_faithfulness",
-                                "hallucination_rate","false_refusal_rate","false_answer_rate",
-                                "evidence_recall","forbidden_claim_rate","composite_score",
-                                "detected_refusal_rate"]}
+                     for k in SCALAR_METRIC_FIELDS}
             save_comparison_json(delta, cmp_path)
             log.info("Comparison saved: %s", cmp_path)
         if drop > epsilon:
@@ -194,6 +194,7 @@ def evaluate(dataset, report, top_k, dual_judge, dry_run, epsilon, baseline,
     click.echo(f"pass_rate       : {em.pass_rate:.4f}")
     click.echo(f"mean_correctness: {em.mean_correctness:.4f}")
     click.echo(f"mean_faithfulness: {em.mean_faithfulness:.4f}")
+    click.echo(f"mean_relevance  : {em.mean_relevance:.4f}")
     click.echo(f"evidence_recall : {em.evidence_recall:.4f}")
     click.echo(f"hallucination   : {em.hallucination_rate:.4f}")
     click.echo(f"detected_refusal: {em.detected_refusal_rate:.4f}  (structural; judge-independent)")
@@ -211,16 +212,14 @@ def evaluate(dataset, report, top_k, dual_judge, dry_run, epsilon, baseline,
 def compare(baseline, candidate, output, epsilon):
     """Print delta table between two runs; exit 1 if composite_score regressed."""
     from .reporter import save_comparison_json
+    from .metrics import SCALAR_METRIC_FIELDS
 
     with baseline.open() as f:
         b = json.load(f)
     with candidate.open() as f:
         c = json.load(f)
 
-    fields = ["pass_rate","mean_correctness","mean_faithfulness",
-              "hallucination_rate","false_refusal_rate","false_answer_rate",
-              "evidence_recall","forbidden_claim_rate","composite_score",
-              "detected_refusal_rate"]
+    fields = SCALAR_METRIC_FIELDS
 
     delta = {}
     click.echo(f"\n{'Metric':<30} {'Baseline':>10} {'Candidate':>10} {'Delta':>10}")
